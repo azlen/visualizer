@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<script src="mathbox.js"></script>
+</head>
+<body>
+	<script>
+		var ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+		update = false;
+
+		navigator.getUserMedia  = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+
+		navigator.getUserMedia({audio: true}, function(stream) {
+			analyzer = ctx.createAnalyser();
+
+			analyzer.fftSize = 2048;
+
+			var mediaStreamSource = ctx.createMediaStreamSource(stream);
+
+			mediaStreamSource.connect(analyzer);
+
+			update = true;
+		}, function(err){console.error("The following error occured: " + err)});
+
+		var audioBuffer;
+		var analyzer;
+		var frequencyData = new Uint8Array(1024);
+
+		mathbox = mathBox({
+			plugins: ['core', 'cursor']
+		});
+
+		three = mathbox.three;
+
+		three.camera.position.set(0, 0, 3);
+		three.renderer.setClearColor(new THREE.Color(0xFFFFFF), 1.0);
+
+		time = 0
+		three.on('update', function () {
+		  time = three.Time.clock;
+		  if(update === true){
+		  	analyzer.getByteFrequencyData(frequencyData);
+		  }
+		});
+
+		view = mathbox.cartesian({
+		  range: [[-2, 2], [-1, 1], [-1, 1]],
+		  scale: [3, 1, 1],
+		});
+
+		var segments = 1024;
+		view.interval({
+	      id: 'voice',
+	      length: segments,
+	      items: 1,
+	      history:1,
+	      expression: function (x, i, emit) {
+	      	var index = Math.round(frequencyData.length*i/segments);
+	      	var range = 5;
+	      	var average = frequencyData[index];
+	      	for(var r = 1; r < range+1; r++){
+	      		average += frequencyData[index-r] || 0;
+	      		average += frequencyData[index+r] || 0;
+	      	}
+	      	if(i != 0){
+	      		average = average/(range*2+1);
+	      	}else{
+	      		average = average/range;
+	      	}
+	        y = average/128;
+	       	emit(x, y);
+	      },
+	      dimensions: 2,
+	    });
+
+	    view.line({
+	      points: '#voice',
+	      color: 0x3498DB,
+	      width: 0.01,
+	    });
+	</script>
+</body>
+</html>
